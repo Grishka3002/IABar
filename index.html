@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>AiBar | Коктейли по настроению</title>
+    <meta
+      name="description"
+      content="PWA-приложение, которое подбирает коктейли по настроению, тегам и формату вечера."
+    />
+    <meta name="theme-color" content="#13231d" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div class="hero__copy">
+          <h1>Вечер начинается с одного вопроса.</h1>
+          <p class="hero__lead">
+            Опиши настроение, и бармен соберет тебе 3 коктейля под этот вечер.
+          </p>
+          <div class="hero__actions">
+            <button class="hero-cta" id="focus-chat" type="button">
+              Подобрать коктейль
+            </button>
+            <p class="hero__microcopy">До 3 коротких уточнений, потом готовая подборка.</p>
+          </div>
+          <div class="hero__chips" id="quick-tags"></div>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="chat-panel is-hidden" id="chat-section" aria-labelledby="chat-title">
+          <div class="section-head">
+            <div>
+              <h2 id="chat-title">Разговор у стойки</h2>
+            </div>
+            <button class="ghost-button" id="restart-chat" type="button">
+              Начать заново
+            </button>
+          </div>
+
+          <div class="chat-log" id="chat-log" aria-live="polite"></div>
+          <div class="quick-replies" id="quick-replies"></div>
+
+          <form class="composer" id="chat-form">
+            <label class="sr-only" for="chat-input">Сообщение</label>
+            <textarea
+              id="chat-input"
+              rows="2"
+              placeholder="Например: хочу что-то цитрусовое, бодрое и не очень крепкое"
+            ></textarea>
+            <button class="primary-button" type="submit">Отправить</button>
+          </form>
+        </section>
+
+        <section class="results-panel is-hidden" id="results-section" aria-labelledby="results-title">
+          <div class="section-head">
+            <div>
+              <h2 id="results-title">Рекомендации бармена</h2>
+            </div>
+          </div>
+
+          <div class="results-grid" id="results-grid">
+            <article class="placeholder-card">
+              <p>Пока пусто. Напиши бармену, какое у тебя настроение.</p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="recipe-modal is-hidden" id="recipe-modal" aria-hidden="true">
+      <div class="recipe-modal__backdrop" id="recipe-backdrop"></div>
+      <article class="recipe-sheet" role="dialog" aria-modal="true" aria-labelledby="recipe-title">
+        <button class="recipe-sheet__close" id="recipe-close" type="button" aria-label="Закрыть рецепт">
+          Закрыть
+        </button>
+        <div class="recipe-sheet__content" id="recipe-content"></div>
+      </article>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>

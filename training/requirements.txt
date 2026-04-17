@@ -1,0 +1,7 @@
+unsloth
+unsloth_zoo
+transformers>=4.51.0
+datasets>=3.0.0
+trl>=0.9.6
+accelerate>=0.34.0
+peft>=0.12.0
