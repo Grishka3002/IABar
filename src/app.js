@@ -1,6 +1,7 @@
 import { quickTags } from "./data/cocktails.js";
 import {
   addUserMessage,
+  buildCompletionMessage,
   buildProbeQuestion,
   buildRecommendations,
   createInitialState,
@@ -13,10 +14,13 @@ import {
   createSignatureCocktail,
   getBartenderTurn,
   getRecommendationSet,
-  loadSettings
+  loadSettings,
+  rateSignatureCocktail
 } from "./lib/ai.js";
 
 const state = createInitialState();
+const likedSignatureIds = new Set();
+const dislikedSignatureIds = new Set();
 
 const chatLog = document.querySelector("#chat-log");
 const chatForm = document.querySelector("#chat-form");
@@ -63,12 +67,22 @@ chatForm.addEventListener("submit", async (event) => {
 
   if (aiTurn?.ok) {
     const nextAnswers = aiTurn.answers || {};
+    const mergedBaseSpirit = nextAnswers.baseSpirit ?? state.answers.baseSpirit ?? null;
+    const inferredAlcoholic =
+      nextAnswers.alcoholic ??
+      state.answers.alcoholic ??
+      (mergedBaseSpirit === "none"
+        ? false
+        : ["gin", "whiskey", "rum", "tequila", "aperitif"].includes(mergedBaseSpirit)
+          ? true
+          : null);
+
     state.answers = {
       ...state.answers,
       stockMode: nextAnswers.stockMode ?? state.answers.stockMode ?? null,
       inventory: dedupeList([...(state.answers.inventory || []), ...((nextAnswers.inventory) || [])]),
-      baseSpirit: nextAnswers.baseSpirit ?? state.answers.baseSpirit ?? null,
-      alcoholic: nextAnswers.alcoholic ?? state.answers.alcoholic ?? null,
+      baseSpirit: mergedBaseSpirit,
+      alcoholic: inferredAlcoholic,
       moods: dedupeList([...(state.answers.moods || []), ...((nextAnswers.moods) || [])]),
       tags: dedupeList([...(state.answers.tags || []), ...((nextAnswers.tags) || [])]),
       intensity: nextAnswers.intensity || state.answers.intensity || null,
@@ -77,17 +91,25 @@ chatForm.addEventListener("submit", async (event) => {
       state.askedQuestions += 1;
     }
     state.isComplete = Boolean(aiTurn.complete);
-    state.messages.push({
-      role: "bot",
-      text: aiTurn.assistant_message,
-    });
-    if (state.isComplete && !hasEnoughInfo(state.answers)) {
+    const enoughInfo = hasEnoughInfo(state.answers);
+
+    if (enoughInfo) {
+      state.isComplete = true;
+      state.messages.push({
+        role: "bot",
+        text: state.isComplete && aiTurn.complete
+          ? aiTurn.assistant_message
+          : buildCompletionMessage(state.answers),
+      });
+    } else {
       state.isComplete = false;
       state.messages.push({
         role: "bot",
-        text: buildProbeQuestion(state.answers),
+        text: aiTurn.asked_question ? buildProbeQuestion(state.answers) : aiTurn.assistant_message,
       });
-      state.askedQuestions = Math.min(state.askedQuestions + 1, 3);
+      if (aiTurn.complete) {
+        state.askedQuestions = Math.min(state.askedQuestions + 1, 3);
+      }
     }
   } else {
     nextBartenderTurn(state, text);
@@ -187,7 +209,12 @@ function renderComposerState() {
     return;
   }
 
-  if (state.answers.alcoholic === null && state.answers.baseSpirit !== null) {
+  const alcoholResolved =
+    state.answers.alcoholic !== null ||
+    state.answers.baseSpirit === "none" ||
+    ["gin", "whiskey", "rum", "tequila", "aperitif"].includes(state.answers.baseSpirit);
+
+  if (!alcoholResolved && state.answers.baseSpirit !== null) {
     chatInput.placeholder = "Например: алкогольный или безалкогольный";
     return;
   }
@@ -263,6 +290,10 @@ function createDrinkCard(drink) {
     <div class="drink-card__tags">${tags}</div>
   `;
 
+  if (drink.source === "ai") {
+    article.append(createSignatureActions(drink));
+  }
+
   article.tabIndex = 0;
   article.setAttribute("role", "button");
   article.setAttribute("aria-label", `Открыть рецепт ${drink.name}`);
@@ -275,6 +306,57 @@ function createDrinkCard(drink) {
   });
 
   return article;
+}
+
+function createSignatureActions(drink) {
+  const actions = document.createElement("div");
+  actions.className = "drink-card__actions";
+
+  const likeButton = document.createElement("button");
+  likeButton.type = "button";
+  likeButton.className = "reaction-button reaction-button--like";
+  likeButton.textContent = likedSignatureIds.has(drink.id) ? "Сохранено в базу" : "Нравится";
+  likeButton.disabled = likedSignatureIds.has(drink.id);
+  likeButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+
+    const response = await rateSignatureCocktail({
+      cocktail: drink,
+      action: "like",
+    });
+
+    if (response?.ok) {
+      likedSignatureIds.add(drink.id);
+      dislikedSignatureIds.delete(drink.id);
+      likeButton.textContent = response.saved ? "Сохранено в базу" : "Уже есть в базе";
+      likeButton.disabled = true;
+      dislikeButton.disabled = true;
+    }
+  });
+
+  const dislikeButton = document.createElement("button");
+  dislikeButton.type = "button";
+  dislikeButton.className = "reaction-button reaction-button--dislike";
+  dislikeButton.textContent = dislikedSignatureIds.has(drink.id) ? "Не сохраняем" : "Не нравится";
+  dislikeButton.disabled = likedSignatureIds.has(drink.id);
+  dislikeButton.addEventListener("click", async (event) => {
+    event.stopPropagation();
+
+    const response = await rateSignatureCocktail({
+      cocktail: drink,
+      action: "dislike",
+    });
+
+    if (response?.ok) {
+      dislikedSignatureIds.add(drink.id);
+      dislikeButton.textContent = "Не сохраняем";
+      dislikeButton.disabled = true;
+      likeButton.disabled = true;
+    }
+  });
+
+  actions.append(likeButton, dislikeButton);
+  return actions;
 }
 
 function pushBotMessage(text) {

@@ -4,7 +4,7 @@ const clarifyingQuestions = [
   "Для начала уточню формат: подбираем из того, что уже есть дома, или можно ориентироваться свободно и при необходимости докупить ингредиенты?",
   "Тогда расскажи, что у тебя уже есть под рукой: алкоголь, цитрус, содовая, сиропы, мята, лед.",
   "На какой основе хочется коктейль: джин, виски, ром, текила, аперитивная база или без жесткой привязки?",
-  "Скажи, это должен быть алкогольный или безалкогольный подбор?",
+  "Скажи, идем в алкогольный или безалкогольный сценарий?",
   "Какое настроение ты хочешь поймать: спокойное, уютное, праздничное, легкое, яркое?",
   "Есть ли вкусы или акценты, которые хочется почувствовать: цитрус, мята, ягоды, сладость, сухость, горчинка?"
 ];
@@ -30,6 +30,7 @@ const phraseGroups = {
 
 const baseSpiritMap = [
   { patterns: ["джин", "gin"], value: "gin" },
+  { patterns: ["водка", "vodka"], value: "vodka" },
   { patterns: ["виски", "бурбон", "whiskey", "whisky"], value: "whiskey" },
   { patterns: ["ром", "rum"], value: "rum" },
   { patterns: ["текила", "tequila"], value: "tequila" },
@@ -75,6 +76,7 @@ const tagMap = [
 
 const inventoryMap = [
   { patterns: ["джин", "gin"], value: "gin", aliases: ["джин"] },
+  { patterns: ["водка", "vodka"], value: "vodka", aliases: ["водка"] },
   { patterns: ["виски", "бурбон", "whiskey", "whisky"], value: "whiskey", aliases: ["виски", "бурбон"] },
   { patterns: ["ром", "rum"], value: "rum", aliases: ["ром"] },
   { patterns: ["текила", "tequila"], value: "tequila", aliases: ["текила"] },
@@ -114,7 +116,7 @@ export function createInitialState() {
       {
         role: "bot",
         text:
-          "Я твой бармен. Для начала скажи: подбираем из того, что уже есть дома, или можно советовать свободно, как будто ингредиенты можно докупить?"
+          "Я твой бармен. Опиши вечер, настроение или то, что уже знаешь про коктейль, а если чего-то будет не хватать, я коротко уточню и соберу подборку."
       }
     ],
     answers: {
@@ -147,11 +149,13 @@ export function mergeExtractedPreferences(answers, text) {
     intensity: answers.intensity ?? null,
   };
   extractPreferences(nextAnswers, text);
+  syncAlcoholicWithBaseSpirit(nextAnswers);
   return nextAnswers;
 }
 
 export function nextBartenderTurn(state, userText) {
   extractPreferences(state.answers, userText);
+  syncAlcoholicWithBaseSpirit(state.answers);
 
   const missing = getMissingSlots(state.answers);
   const shouldAsk = missing.length > 0 && state.askedQuestions < 3;
@@ -222,7 +226,7 @@ export function hasEnoughInfo(answers) {
   const hasStockMode = answers.stockMode !== null;
   const hasInventory = answers.stockMode !== "home" || (answers.inventory || []).length > 0;
   const hasBaseSpirit = answers.baseSpirit !== null;
-  const hasAlcoholChoice = answers.alcoholic !== null;
+  const hasAlcoholChoice = getEffectiveAlcoholic(answers) !== null;
   const hasMood = Array.isArray(answers.moods) && answers.moods.length > 0;
   const hasTaste = Array.isArray(answers.tags) && answers.tags.length > 0;
   return hasStockMode && hasInventory && hasBaseSpirit && hasAlcoholChoice && (hasMood || hasTaste);
@@ -230,34 +234,38 @@ export function hasEnoughInfo(answers) {
 
 export function buildProbeQuestion(answers) {
   if (answers.stockMode === null) {
-    return clarifyingQuestions[0];
+    return buildStockModeQuestion(answers);
   }
 
   if (answers.stockMode === "home" && !(answers.inventory || []).length) {
-    return "Тогда скажи, что именно уже есть дома. Достаточно коротко: например, джин, лимон, тоник, мята или виски, лед, сироп.";
+    return "Тогда давай оттолкнемся от полки и холодильника. Что уже есть дома: из алкоголя, цитруса, миксеров, сиропов, мяты, льда?";
   }
 
   if (answers.baseSpirit === null) {
-    return clarifyingQuestions[2];
+    return "На какой базе хочется собрать вечер: джин, водка, виски, ром, текила, аперитивная история или вообще без привязки?";
   }
 
-  if (answers.alcoholic === null) {
-    return clarifyingQuestions[3];
+  if (shouldAskAlcoholicQuestion(answers)) {
+    return "Уточню только одно: идем в алкогольный или безалкогольный вариант?";
   }
 
   if (!answers.moods.length && !answers.tags.length) {
-    return "Пока вайб слишком размытый. Подскажи хотя бы одно: настроение или вкус, например уютное, свежее, цитрусовое, мягкое?";
+    return buildMoodOrTasteQuestion(answers);
   }
 
   if (!answers.moods.length) {
-    return "По вкусу уже понятнее. А настроение какое: спокойное, уютное, яркое, праздничное?";
+    return buildMoodOnlyQuestion(answers);
   }
 
   if (!answers.tags.length) {
-    return "Настроение поймал. Теперь дай вкусовой ориентир: цитрус, мята, ягоды, сладость, сухость или горчинка?";
+    return buildTasteOnlyQuestion(answers);
   }
 
   return "Дай еще один короткий ориентир по вкусу или настроению, чтобы я не промахнулся с подборкой.";
+}
+
+export function buildCompletionMessage(answers) {
+  return buildSummary(answers);
 }
 
 export function getQuickReplies(answers) {
@@ -273,10 +281,10 @@ export function getQuickReplies(answers) {
   }
 
   if (answers.baseSpirit === null) {
-    return ["Джин", "Виски", "Ром", "Текила", "Аперитивная", "Без привязки"];
+    return ["Джин", "Водка", "Виски", "Ром", "Текила", "Аперитивная", "Без привязки"];
   }
 
-  if (answers.alcoholic === null) {
+  if (shouldAskAlcoholicQuestion(answers)) {
     return ["Алкогольный", "Безалкогольный"];
   }
 
@@ -292,7 +300,7 @@ export function getQuickReplies(answers) {
 }
 
 function buildSummary(answers) {
-  const mode = answers.alcoholic === false ? "безалкогольный" : "алкогольный";
+  const mode = getEffectiveAlcoholic(answers) === false ? "безалкогольный" : "алкогольный";
   const stockText =
     answers.stockMode === "home"
       ? `с оглядкой на то, что уже есть дома${answers.inventory.length ? `: ${formatInventory(answers.inventory)}` : ""}`
@@ -323,7 +331,7 @@ function getMissingSlots(answers) {
     missing.push("baseSpirit");
   }
 
-  if (answers.alcoholic === null) {
+  if (shouldAskAlcoholicQuestion(answers)) {
     missing.push("alcoholic");
   }
 
@@ -425,6 +433,7 @@ function extractInventory(text) {
 
 function scoreDrink(drink, answers) {
   let score = 1;
+  const alcoholicPreference = getEffectiveAlcoholic(answers);
 
   for (const mood of answers.moods) {
     if (drink.mood.includes(mood)) {
@@ -438,11 +447,11 @@ function scoreDrink(drink, answers) {
     }
   }
 
-  if (answers.alcoholic === false && drink.alcoholic === false) {
+  if (alcoholicPreference === false && drink.alcoholic === false) {
     score += 6;
   }
 
-  if (answers.alcoholic === true && drink.alcoholic === true) {
+  if (alcoholicPreference === true && drink.alcoholic === true) {
     score += 3;
   }
 
@@ -556,6 +565,7 @@ function takeUnique(list, count) {
 function translateBaseSpirit(baseSpirit) {
   const map = {
     gin: "джин",
+    vodka: "водку",
     whiskey: "виски",
     rum: "ром",
     tequila: "текилу",
@@ -576,6 +586,7 @@ function formatInventory(inventory) {
 function inventoryLabel(item) {
   const map = {
     gin: "джин",
+    vodka: "водка",
     whiskey: "виски",
     rum: "ром",
     tequila: "текила",
@@ -606,4 +617,120 @@ function inventoryLabel(item) {
 
 function dedupeList(list) {
   return [...new Set(list.map((item) => String(item).toLowerCase()))];
+}
+
+function buildMoodOrTasteQuestion(answers) {
+  if (answers.baseSpirit === "vodka") {
+    return "С водкой понял. Куда ведем вкус: в пряность и остринку, в цитрус и свежесть или в что-то более мягкое и чистое?";
+  }
+
+  if (answers.baseSpirit === "whiskey") {
+    return "С виски понял. Теперь подскажи по ощущению: тянет в мягкое и теплое, в сухое и собранное или в что-то поярче?";
+  }
+
+  if (answers.baseSpirit === "gin") {
+    return "С джином понял. Куда повернем: в цитрус и свежесть, в травяную сухость или в что-то мягче и спокойнее?";
+  }
+
+  if (answers.baseSpirit === "rum") {
+    return "С ромом понял. Хочется чего-то свежего и лаймового, более мягкого и сладкого или совсем легкого по вайбу?";
+  }
+
+  if (answers.baseSpirit === "tequila") {
+    return "С текилой понял. Ближе цитрус и соль, сочная свежесть или что-то мягче и спокойнее?";
+  }
+
+  if (answers.baseSpirit === "aperitif") {
+    return "С аперитивной базой понял. Идем в легкость и пузырьки, в горчинку или в более мягкий вечерний вайб?";
+  }
+
+  if (answers.alcoholic === false || answers.baseSpirit === "none") {
+    return "Теперь нужен сам вайб. Хочется чего-то свежего и звонкого, мягкого и уютного или более ягодного и игривого?";
+  }
+
+  return "Теперь нужен сам вайб. Подскажи хотя бы одно: настроение или вкус, например уютное, свежее, цитрусовое, мягкое.";
+}
+
+function buildMoodOnlyQuestion(answers) {
+  if (answers.tags.includes("цитрусовый")) {
+    return "По вкусу уже вижу цитрус. А по настроению это скорее легкий свежий вечер, уютная тишина или что-то поярче?";
+  }
+
+  if (answers.tags.includes("горький")) {
+    return "Горчинку поймал. А настроение какое нужно вокруг нее: собранное, спокойное или более праздничное?";
+  }
+
+  if (answers.tags.includes("сладкий") || answers.tags.includes("ягодный")) {
+    return "По вкусу уже понятнее. А настроение какое: уютное, игривое, романтичное или легкое?";
+  }
+
+  return "По вкусу уже понятнее. А настроение какое: спокойное, уютное, яркое, праздничное?";
+}
+
+function buildTasteOnlyQuestion(answers) {
+  if (answers.moods.includes("уютное")) {
+    return "Уютный вайб поймал. Во вкус уходим куда: цитрус, мягкая сладость, пряность или что-то более сухое?";
+  }
+
+  if (answers.moods.includes("спокойное")) {
+    return "Спокойный ритм поймал. По вкусу что ближе: цитрус, травы, сухость, легкая горчинка или что-то мягкое?";
+  }
+
+  if (answers.moods.includes("праздничное") || answers.moods.includes("яркое")) {
+    return "Настроение уже есть. Теперь зацепимся за вкус: цитрус, ягоды, мята, сладость или игристая легкость?";
+  }
+
+  return "Настроение поймал. Теперь дай вкусовой ориентир: цитрус, мята, ягоды, сладость, сухость или горчинка?";
+}
+
+function shouldAskAlcoholicQuestion(answers) {
+  return getEffectiveAlcoholic(answers) === null;
+}
+
+function getEffectiveAlcoholic(answers) {
+  if (answers.alcoholic !== null && answers.alcoholic !== undefined) {
+    return answers.alcoholic;
+  }
+
+  if (answers.baseSpirit === "none") {
+    return false;
+  }
+
+  if (["gin", "vodka", "whiskey", "rum", "tequila", "aperitif"].includes(answers.baseSpirit)) {
+    return true;
+  }
+
+  return null;
+}
+
+function syncAlcoholicWithBaseSpirit(answers) {
+  const inferred = getEffectiveAlcoholic(answers);
+  if (inferred !== null) {
+    answers.alcoholic = inferred;
+  }
+}
+
+function buildStockModeQuestion(answers) {
+  if (answers.baseSpirit && answers.baseSpirit !== "any" && answers.baseSpirit !== "none") {
+    return `Окей, ${translateBaseSpiritForQuestion(answers.baseSpirit)} есть. Остальное докупишь или лучше собрать из того, что уже есть дома из миксеров, цитруса и сиропов?`;
+  }
+
+  if (answers.baseSpirit === "none") {
+    return "Окей, идем в безалкогольную сторону. Остальное можно докупить или лучше собрать из того, что уже есть дома?";
+  }
+
+  return clarifyingQuestions[0];
+}
+
+function translateBaseSpiritForQuestion(baseSpirit) {
+  const map = {
+    gin: "с джином",
+    vodka: "с водкой",
+    whiskey: "с виски",
+    rum: "с ромом",
+    tequila: "с текилой",
+    aperitif: "с аперитивной базой",
+  };
+
+  return map[baseSpirit] || "с этой базой";
 }

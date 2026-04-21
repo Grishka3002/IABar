@@ -80,6 +80,26 @@ export async function getRecommendationSet({ messages, answers, previousRecommen
   }
 }
 
+export async function rateSignatureCocktail({ cocktail, action }) {
+  try {
+    const response = await fetch("/api/signature-cocktails/rate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ cocktail, action }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 async function requestOpenAI({ answers, picks, settings }) {
   const prompt = {
     role: "user",

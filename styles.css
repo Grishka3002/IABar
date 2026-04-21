@@ -468,6 +468,46 @@ h1 {
   font-size: 0.86rem;
 }
 
+.drink-card__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.reaction-button {
+  appearance: none;
+  border: 1px solid rgba(226, 192, 157, 0.18);
+  background: rgba(255, 248, 238, 0.03);
+  color: var(--text-main);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+.reaction-button:hover {
+  transform: translateY(-1px);
+}
+
+.reaction-button--like:hover {
+  border-color: rgba(149, 209, 177, 0.45);
+  background: rgba(149, 209, 177, 0.08);
+  color: #dff6e8;
+}
+
+.reaction-button--dislike:hover {
+  border-color: rgba(226, 157, 157, 0.4);
+  background: rgba(226, 157, 157, 0.08);
+  color: #f4dddd;
+}
+
+.reaction-button:disabled {
+  opacity: 0.72;
+  cursor: default;
+  transform: none;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

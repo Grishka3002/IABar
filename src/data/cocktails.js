@@ -1,4 +1,7 @@
-export const cocktailBase = [
+import { generatedCocktailBase } from "./cocktails.generated.js";
+import { signatureCocktailBase } from "./signature-cocktails.js";
+
+const curatedCocktailBase = [
   {
     id: "negroni",
     name: "Negroni",
@@ -133,6 +136,63 @@ export const cocktailBase = [
     ]
   },
   {
+    id: "moscow-mule",
+    name: "Moscow Mule",
+    strength: "medium",
+    alcoholic: true,
+    baseSpirit: "vodka",
+    abv: "10-13%",
+    mood: ["свежее", "яркое", "легкое"],
+    tags: ["пряный", "имбирный эль", "цитрусовый", "освежающий"],
+    glass: "highball",
+    description: "Холодный, пряный и очень живой коктейль с водкой, имбирем и лаймом.",
+    ingredients: ["50 мл водки", "15 мл сока лайма", "100 мл имбирного эля", "120 г льда", "1 долька лайма"],
+    method: [
+      "Наполни высокий бокал льдом.",
+      "Влей водку и сок лайма.",
+      "Долей имбирный эль и аккуратно перемешай.",
+      "Укрась долькой лайма и подай очень холодным."
+    ]
+  },
+  {
+    id: "cosmopolitan",
+    name: "Cosmopolitan",
+    strength: "medium",
+    alcoholic: true,
+    baseSpirit: "vodka",
+    abv: "18-21%",
+    mood: ["игривое", "праздничное", "яркое"],
+    tags: ["цитрусовый", "ягодный", "сухой", "легкий"],
+    glass: "coupe",
+    description: "Яркий водочный коктейль с клюквой и цитрусом для более нарядного и живого вечера.",
+    ingredients: ["40 мл водки", "15 мл апельсинового ликера", "30 мл клюквенного сока", "10 мл сока лайма", "100 г льда"],
+    method: [
+      "Охлади бокал coupe.",
+      "В шейкер добавь лед, водку, апельсиновый ликер, клюквенный сок и сок лайма.",
+      "Встряхни 10-12 секунд до хорошего охлаждения.",
+      "Процеди в бокал и подай без лишних украшений."
+    ]
+  },
+  {
+    id: "bloody-mary",
+    name: "Bloody Mary",
+    strength: "medium",
+    alcoholic: true,
+    baseSpirit: "vodka",
+    abv: "12-15%",
+    mood: ["собранное", "яркое", "вечернее"],
+    tags: ["пряный", "острый", "томатный", "соленый"],
+    glass: "highball",
+    description: "Пряный, плотный и солоноватый коктейль на водке с томатной базой и выраженным характером.",
+    ingredients: ["45 мл водки", "90 мл томатного сока", "15 мл лимонного сока", "2 дэш вустерского соуса", "2 дэш табаско", "1 щепотка соли", "1 щепотка перца", "120 г льда"],
+    method: [
+      "Наполни высокий бокал льдом.",
+      "Влей водку, томатный и лимонный сок.",
+      "Добавь вустерский соус, табаско, соль и перец.",
+      "Аккуратно перемешай, чтобы сохранить плотную текстуру, и подай сразу."
+    ]
+  },
+  {
     id: "virgin-mojito",
     name: "Virgin Mojito",
     strength: "zero",
@@ -209,6 +269,34 @@ export const cocktailBase = [
     ]
   }
 ];
+
+export const cocktailBase = mergeCocktails(
+  generatedCocktailBase,
+  curatedCocktailBase,
+  signatureCocktailBase
+);
+
+function mergeCocktails(generated, curated, signatures) {
+  const byName = new Map();
+
+  for (const drink of generated) {
+    byName.set(normalizeKey(drink.name), drink);
+  }
+
+  for (const drink of curated) {
+    byName.set(normalizeKey(drink.name), drink);
+  }
+
+  for (const drink of signatures) {
+    byName.set(normalizeKey(drink.name), drink);
+  }
+
+  return [...byName.values()];
+}
+
+function normalizeKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
 
 export const quickTags = [
   "цитрусовый",
